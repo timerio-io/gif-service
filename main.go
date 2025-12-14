@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"gif-service/handlers"
+
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 type Response struct {
@@ -19,9 +22,10 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	r := chi.NewRouter()
+	r.Use(middleware.Logger)
 
 	r.Get("/health", healthHandler)
-
+	r.Post("/generate", handlers.Generate)
 	port := ":8080"
 	fmt.Printf("\n🚀 Server running at http://localhost%s\n\n", port)
 
