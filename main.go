@@ -3,12 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"gif-service/handlers/private"
+	"gif-service/routes"
+
+	"gif-service/internal/database"
 	"log"
 	"net/http"
-
-	"gif-service/handlers"
-	"gif-service/internal/database"
-	"gif-service/queries"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -28,24 +28,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	countdown, err := queries.CreateCountdown(db.DB, "test-user")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("Created countdown: %+v\n", countdown)
-
-	found, err := queries.GetCountdownById(db.DB, countdown.ID)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("Found countdown: %+v\n", found)
-
+	private.SetDB(db.DB)
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 
 	r.Get("/health", healthHandler)
-	r.Post("/generate", handlers.Generate)
+	routes.Setup(r)
+
 	port := ":8080"
 	fmt.Printf("\n🚀 Server running at http://localhost%s\n\n", port)
 
