@@ -8,10 +8,11 @@ import (
 	"gorm.io/gorm"
 )
 
-func CreateCountdown(db *gorm.DB, userId string) (*models.Countdown, error) {
+func CreateCountdown(db *gorm.DB, userId string, name string) (*models.Countdown, error) {
 	countdown := &models.Countdown{
 		ID:        uuid.New().String(),
 		UserID:    userId,
+		Name:      name,
 		Type:      models.CountdownTypeEvent,
 		CreatedAt: time.Now(),
 	}

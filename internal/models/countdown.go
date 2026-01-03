@@ -13,13 +13,16 @@ const (
 )
 
 type Countdown struct {
-	ID        string        `gorm:"primaryKey;type:text" json:"id"`
-	UserID    string        `gorm:"not null;type:text;index" json:"user_id"`
-	Type      CountdownType `gorm:"not null;type:text;check:type IN ('fixed','on_send','on_open');index" json:"type"`
-	EndTime   *time.Time    `json:"end_time,omitempty"`
-	Duration  *int          `json:"duration,omitempty"`
-	StartedAt *time.Time    `json:"started_at,omitempty"`
-	CreatedAt time.Time     `json:"created_at"`
+	ID         string        `gorm:"primaryKey;type:text" json:"id"`
+	UserID     string        `gorm:"not null;type:text;index" json:"user_id"`
+	Name       string        `gorm:"not null;type:text" json:"name"`
+	Type       CountdownType `gorm:"not null;type:text;check:type IN ('fixed','on_send','on_open');index" json:"type"`
+	EndTime    *time.Time    `json:"end_time,omitempty"`
+	Duration   *int          `json:"duration,omitempty"`
+	StartedAt  *time.Time    `json:"started_at,omitempty"`
+	PreviewURL string        `gorm:"type:text" json:"preview_url"`
+	Views      int           `gorm:"default:0" json:"views"`
+	CreatedAt  time.Time     `json:"created_at"`
 }
 
 type Template struct {

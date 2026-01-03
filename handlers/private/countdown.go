@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"gif-service/middleware"
 	"gif-service/queries"
 
 	"github.com/go-chi/chi/v5"
@@ -16,10 +17,25 @@ func SetDB(database *gorm.DB) {
 	db = database
 }
 
-func CreateCountdown(w http.ResponseWriter, r *http.Request) {
-	userID := "test-user"
+type CreateCountdownRequest struct {
+	Name string `json:"name"`
+}
 
-	countdown, err := queries.CreateCountdown(db, userID)
+func CreateCountdown(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value(middleware.UserIDKey).(string)
+
+	var req CreateCountdownRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Name == "" {
+		http.Error(w, "Name is required", http.StatusBadRequest)
+		return
+	}
+
+	countdown, err := queries.CreateCountdown(db, userID, req.Name)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -54,7 +70,7 @@ func GetCountdown(w http.ResponseWriter, r *http.Request) {
 }
 
 func ListCountdowns(w http.ResponseWriter, r *http.Request) {
-	userID := "test-user"
+	userID := r.Context().Value(middleware.UserIDKey).(string)
 
 	countdowns, err := queries.ListCountdowns(db, userID)
 
@@ -81,5 +97,4 @@ func DeleteCountdown(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-
 }
