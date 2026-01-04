@@ -75,3 +75,17 @@ func StartCountdown(db *gorm.DB, id string) error {
 
 	return nil
 }
+
+func UpdateCountdown(db *gorm.DB, id string, updates map[string]interface{}) error {
+	result := db.Model(&models.Countdown{}).Where("id = ?", id).Updates(updates)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}

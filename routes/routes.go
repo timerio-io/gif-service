@@ -18,6 +18,7 @@ func Setup(r *chi.Mux) {
 		r.Get("/countdowns", private.ListCountdowns)
 		r.Post("/countdowns", private.CreateCountdown)
 		r.Get("/countdowns/{id}", private.GetCountdown)
+		r.Patch("/countdowns/{id}", private.UpdateCountdown)
 		r.Delete("/countdowns/{id}", private.DeleteCountdown)
 
 		// Template routes
