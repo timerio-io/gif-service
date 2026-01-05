@@ -12,3 +12,7 @@ tmp/
 go.work
 
 .env
+
+*data
+data/timerio.db
+*timerio.db

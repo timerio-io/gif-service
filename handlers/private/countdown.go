@@ -22,9 +22,10 @@ type CreateCountdownRequest struct {
 }
 
 type UpdateCountdownRequest struct {
-	Name       *string `json:"name,omitempty"`
-	PreviewURL *string `json:"preview_url,omitempty"`
-	Views      *int    `json:"views,omitempty"`
+	Name          *string `json:"name,omitempty"`
+	PreviewURL    *string `json:"preview_url,omitempty"`
+	Views         *int    `json:"views,omitempty"`
+	IsSoftDeleted *bool   `json:"is_soft_deleted,omitempty"`
 }
 
 func CreateCountdown(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +79,19 @@ func GetCountdown(w http.ResponseWriter, r *http.Request) {
 func ListCountdowns(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(middleware.UserIDKey).(string)
 
-	countdowns, err := queries.ListCountdowns(db, userID)
+	filters := make(map[string]interface{})
+
+	if countdownType := r.URL.Query().Get("type"); countdownType != "" && countdownType != "all" {
+		filters["type"] = countdownType
+	}
+
+	if archived := r.URL.Query().Get("archived"); archived == "true" {
+		filters["is_soft_deleted"] = true
+	} else {
+		filters["is_soft_deleted"] = false
+	}
+
+	countdowns, err := queries.ListCountdowns(db, userID, filters)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -125,6 +138,9 @@ func UpdateCountdown(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Views != nil {
 		updates["views"] = *req.Views
+	}
+	if req.IsSoftDeleted != nil {
+		updates["is_soft_deleted"] = *req.IsSoftDeleted
 	}
 
 	if len(updates) == 0 {

@@ -18,7 +18,6 @@ type VerifyResponse struct {
 
 func Auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 		authURL := os.Getenv("AUTH_WORKER_URL")
 		apiKey := os.Getenv("GIF_SERVICE_API_KEY")
 

@@ -27,17 +27,17 @@ func CreateCountdown(db *gorm.DB, userId string, name string) (*models.Countdown
 func GetCountdownById(db *gorm.DB, id string) (*models.Countdown, error) {
 	var countdown models.Countdown
 
-	if err := db.First(&countdown, "id = ?", id).Error; err != nil {
+	if err := db.First(&countdown, "id = ? AND is_soft_deleted = ?", id, false).Error; err != nil {
 		return nil, err
 	}
 
 	return &countdown, nil
 }
 
-func ListCountdowns(db *gorm.DB, userID string) ([]models.Countdown, error) {
+func ListCountdowns(db *gorm.DB, userID string, filters map[string]interface{}) ([]models.Countdown, error) {
 	var countdowns []models.Countdown
 
-	if err := db.Where("user_id = ?", userID).Order("created_at DESC").Find(&countdowns).Error; err != nil {
+	if err := db.Where("user_id = ?", userID).Where(filters).Order("created_at DESC").Find(&countdowns).Error; err != nil {
 		return nil, err
 	}
 
@@ -45,7 +45,7 @@ func ListCountdowns(db *gorm.DB, userID string) ([]models.Countdown, error) {
 }
 
 func DeleteCountdown(db *gorm.DB, id string) error {
-	result := db.Delete(&models.Countdown{}, "id = ?", id)
+	result := db.Where("id = ?", id).Delete(&models.Countdown{})
 
 	if result.Error != nil {
 		return result.Error
@@ -62,7 +62,7 @@ func StartCountdown(db *gorm.DB, id string) error {
 	now := time.Now()
 
 	result := db.Model(&models.Countdown{}).
-		Where("id = ? AND type = ?", id, models.CountdownTypeBirthday).
+		Where("id = ? AND type = ? AND is_soft_deleted = ?", id, models.CountdownTypeBirthday, false).
 		Update("started_at", now)
 
 	if result.Error != nil {
@@ -77,7 +77,7 @@ func StartCountdown(db *gorm.DB, id string) error {
 }
 
 func UpdateCountdown(db *gorm.DB, id string, updates map[string]interface{}) error {
-	result := db.Model(&models.Countdown{}).Where("id = ?", id).Updates(updates)
+	result := db.Model(&models.Countdown{}).Where("id = ? AND is_soft_deleted = ?", id, false).Updates(updates)
 
 	if result.Error != nil {
 		return result.Error
