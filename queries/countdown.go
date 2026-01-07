@@ -77,7 +77,7 @@ func StartCountdown(db *gorm.DB, id string) error {
 }
 
 func UpdateCountdown(db *gorm.DB, id string, updates map[string]interface{}) error {
-	result := db.Model(&models.Countdown{}).Where("id = ? AND is_soft_deleted = ?", id, false).Updates(updates)
+	result := db.Model(&models.Countdown{}).Where("id = ?", id).Updates(updates)
 
 	if result.Error != nil {
 		return result.Error

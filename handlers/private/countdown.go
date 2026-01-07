@@ -2,8 +2,15 @@ package private
 
 import (
 	"encoding/json"
+	"fmt"
+	"image/color"
+	"log"
 	"net/http"
+	"os"
+	"time"
 
+	"gif-service/gif"
+	"gif-service/internal/storage"
 	"gif-service/middleware"
 	"gif-service/queries"
 
@@ -12,9 +19,14 @@ import (
 )
 
 var db *gorm.DB
+var r2Client *storage.R2Client
 
 func SetDB(database *gorm.DB) {
 	db = database
+}
+
+func SetR2Client(client *storage.R2Client) {
+	r2Client = client
 }
 
 type CreateCountdownRequest struct {
@@ -54,6 +66,31 @@ func CreateCountdown(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	gifBytes, err := gif.Generate(gif.Config{
+		EndTime:    time.Now().Add(24 * time.Hour),
+		Background: color.RGBA{R: 255, G: 255, B: 255, A: 255},
+		TextColor:  color.RGBA{R: 0, G: 0, B: 0, A: 255},
+		Width:      400,
+		Height:     250,
+	})
+	if err != nil {
+		http.Error(w, "Failed to generate GIF", http.StatusInternalServerError)
+		return
+	}
+
+	key := fmt.Sprintf("previews/%s.gif", countdown.ID)
+	if err := r2Client.UploadGIF(key, gifBytes); err != nil {
+		log.Printf("R2 Upload Error: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to upload GIF: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	previewURL := fmt.Sprintf("%s/%s", os.Getenv("R2_PUBLIC_URL"), key)
+
+	queries.UpdateCountdown(db, countdown.ID, map[string]interface{}{
+		"preview_url": previewURL,
+	})
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(countdown)
@@ -87,6 +124,8 @@ func ListCountdowns(w http.ResponseWriter, r *http.Request) {
 
 	if archived := r.URL.Query().Get("archived"); archived == "true" {
 		filters["is_soft_deleted"] = true
+	} else if archived == "all" {
+		// Fetch all (active + archived)
 	} else {
 		filters["is_soft_deleted"] = false
 	}
