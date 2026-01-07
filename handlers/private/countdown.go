@@ -70,8 +70,8 @@ func CreateCountdown(w http.ResponseWriter, r *http.Request) {
 		EndTime:    time.Now().Add(24 * time.Hour),
 		Background: color.RGBA{R: 255, G: 255, B: 255, A: 255},
 		TextColor:  color.RGBA{R: 0, G: 0, B: 0, A: 255},
-		Width:      400,
-		Height:     250,
+		Width:      350,
+		Height:     150,
 	})
 	if err != nil {
 		http.Error(w, "Failed to generate GIF", http.StatusInternalServerError)
@@ -152,6 +152,12 @@ func DeleteCountdown(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	key := fmt.Sprintf("previews/%s.gif", id)
+	if err := r2Client.DeleteObject(key); err != nil {
+		log.Printf("R2 Delete Error for %s: %v", id, err)
+		// We don't return error here because the DB record is already deleted
 	}
 
 	w.WriteHeader(http.StatusNoContent)

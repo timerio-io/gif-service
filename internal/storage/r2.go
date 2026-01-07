@@ -39,3 +39,11 @@ func (r *R2Client) UploadGIF(key string, data []byte) error {
 	})
 	return err
 }
+
+func (r *R2Client) DeleteObject(key string) error {
+	_, err := r.client.DeleteObject(&s3.DeleteObjectInput{
+		Bucket: aws.String(r.bucket),
+		Key:    aws.String(key),
+	})
+	return err
+}

@@ -58,19 +58,59 @@ func Generate(cfg Config) ([]byte, error) {
 		go func(i int) {
 			defer wg.Done()
 
-			face := truetype.NewFace(parsedFont, &truetype.Options{Size: 70})
-
 			remaining := time.Until(cfg.EndTime) - time.Duration(i)*time.Second
-			timeStr := formatDuration(remaining)
+			days := int(remaining.Hours() / 24)
+			hours := int(remaining.Hours()) % 24
+			minutes := int(remaining.Minutes()) % 60
+			seconds := int(remaining.Seconds()) % 60
 
 			dc := gg.NewContext(cfg.Width, cfg.Height)
-			dc.SetFontFace(face)
 
+			// Background
 			dc.SetColor(cfg.Background)
 			dc.Clear()
 
-			dc.SetColor(cfg.TextColor)
-			dc.DrawStringAnchored(timeStr, float64(cfg.Width)/2, float64(cfg.Height)/2, 0.5, 0.5)
+			// Number font (larger)
+			numberFace := truetype.NewFace(parsedFont, &truetype.Options{Size: 60})
+			dc.SetFontFace(numberFace)
+
+			// Label font
+			labelFace := truetype.NewFace(parsedFont, &truetype.Options{Size: 14})
+
+			// Calculate positions for 4 columns
+			columnWidth := float64(cfg.Width) / 4
+
+			values := []struct {
+				num   string
+				label string
+			}{
+				{fmt.Sprintf("%02d", days), "Days"},
+				{fmt.Sprintf("%02d", hours), "Hours"},
+				{fmt.Sprintf("%02d", minutes), "Minutes"},
+				{fmt.Sprintf("%02d", seconds), "Seconds"},
+			}
+
+			for i, v := range values {
+				x := columnWidth * (float64(i) + 0.5)
+
+				// Draw number
+				dc.SetFontFace(numberFace)
+				dc.SetColor(cfg.TextColor)
+				dc.DrawStringAnchored(v.num, x, float64(cfg.Height)/2-10, 0.5, 0.5)
+
+				// Draw label below number
+				dc.SetFontFace(labelFace)
+				dc.DrawStringAnchored(v.label, x, float64(cfg.Height)/2+34, 0.5, 0.5)
+			}
+
+			// Draw all separators after text to avoid anti-aliasing issues
+			for i := 0; i < 3; i++ {
+				separatorX := columnWidth * float64(i+1)
+				dc.SetColor(cfg.TextColor)
+				dc.SetLineWidth(2.4)
+				dc.DrawLine(separatorX, float64(cfg.Height)/2-18, separatorX, float64(cfg.Height)/2+18)
+				dc.Stroke()
+			}
 
 			bounds := image.Rect(0, 0, cfg.Width, cfg.Height)
 			palettedImg := image.NewPaletted(bounds, palette)
@@ -94,18 +134,6 @@ func Generate(cfg Config) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
-}
-
-func formatDuration(d time.Duration) string {
-	if d < 0 {
-		return "00:00:00"
-	}
-
-	hours := int(d.Hours())
-	minutes := int(d.Minutes()) % 60
-	seconds := int(d.Seconds()) % 60
-
-	return fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)
 }
 
 func createPalette(bg, text color.Color) []color.Color {
