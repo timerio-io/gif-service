@@ -24,5 +24,11 @@ func Setup(r *chi.Mux) {
 		// Template routes
 		r.Get("/templates/{countdown_id}", private.GetTemplate)
 		r.Put("/templates/{id}", private.UpdateTemplate)
+
+		// Palette routes
+		r.Get("/palettes", private.ListPalettes)
+		r.Post("/palettes", private.CreatePalette)
+		r.Put("/palettes/{id}", private.UpdatePalette)
+		r.Delete("/palettes/{id}", private.DeletePalette)
 	})
 }

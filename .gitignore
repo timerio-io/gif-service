@@ -16,3 +16,4 @@ go.work
 *data
 data/timerio.db
 *timerio.db
+timerio.db

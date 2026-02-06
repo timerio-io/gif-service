@@ -50,3 +50,13 @@ type CountdownOpen struct {
 
 	Countdown Countdown `gorm:"foreignKey:CountdownID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
 }
+
+type ColorPalette struct {
+	ID             string    `gorm:"primaryKey;type:text" json:"id"`
+	UserID         string    `gorm:"not null;type:text;index" json:"user_id"`
+	Name           string    `gorm:"not null;type:text" json:"name"`
+	PrimaryColor   string    `gorm:"not null;type:text" json:"primary_color"`
+	SecondaryColor string    `gorm:"not null;type:text" json:"secondary_color"`
+	AccentColor    string    `gorm:"not null;type:text" json:"accent_color"`
+	CreatedAt      time.Time `json:"created_at"`
+}

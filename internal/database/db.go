@@ -33,6 +33,7 @@ func New(dbPath string) (*DB, error) {
 		&models.Countdown{},
 		&models.Template{},
 		&models.CountdownOpen{},
+		&models.ColorPalette{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
