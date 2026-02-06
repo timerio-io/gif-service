@@ -37,6 +37,7 @@ type Template struct {
 	TextColor   string    `gorm:"not null;type:text" json:"text_color"`
 	Layout      string    `gorm:"not null;type:text" json:"layout"`
 	ShowUnits   bool      `gorm:"not null;default:1" json:"show_units"`
+	StyleConfig string    `gorm:"type:text" json:"style_config"` // Full JSON config for GIF generator
 	CreatedAt   time.Time `json:"created_at"`
 
 	Countdown Countdown `gorm:"foreignKey:CountdownID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`

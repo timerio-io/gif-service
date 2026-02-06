@@ -30,6 +30,29 @@ func CreateTemplate(db *gorm.DB, countdownID string) (*models.Template, error) {
 	return template, nil
 }
 
+func CreateTemplateWithStyle(db *gorm.DB, countdownID string, styleConfig string) (*models.Template, error) {
+	template := &models.Template{
+		ID:          uuid.New().String(),
+		CountdownID: countdownID,
+		DesignID:    "1",
+		Name:        "Default",
+		FontFamily:  "Arial",
+		FontSize:    70,
+		BgColor:     "#FFFFFF",
+		TextColor:   "#000000",
+		Layout:      "horizontal",
+		ShowUnits:   true,
+		StyleConfig: styleConfig,
+		CreatedAt:   time.Now(),
+	}
+
+	if err := db.Create(template).Error; err != nil {
+		return nil, err
+	}
+
+	return template, nil
+}
+
 func GetTemplate(db *gorm.DB, countdownID string) (*models.Template, error) {
 	var template models.Template
 

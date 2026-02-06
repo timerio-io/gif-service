@@ -6,7 +6,7 @@ import (
 	"image"
 	"image/color"
 	"image/gif"
-	"os"
+	"math"
 	"sync"
 	"time"
 
@@ -21,24 +21,154 @@ type Config struct {
 	TextColor  color.Color
 	Width      int
 	Height     int
+
+	// Number styling
+	NumberFontName string
+	NumberFontSize float64
+
+	// Label styling
+	ShowLabels    bool
+	LabelFontName string
+	LabelFontSize float64
+	LabelColor    color.Color
+
+	// Separator styling
+	ShowSeparators bool
+	SeparatorColor color.Color
+
+	// Which units to display
+	ShowDays    bool
+	ShowHours   bool
+	ShowMinutes bool
+	ShowSeconds bool
+
+	// Background options
+	Transparent    bool
+	RoundedCorners bool
+	CornerRadius   int
+
+	// Expired state
+	Expired        bool
+	ExpireBehavior string  // "show_zeros", "hide", "custom_text"
+	ExpireText     string  // Custom text to show when expired
+	ExpireTextFont string  // Font for expire text
+	ExpireTextSize float64 // Font size for expire text
+	ExpireTextColor color.Color
 }
 
-var parsedFont *truetype.Font
-
 func init() {
-	fontBytes, err := os.ReadFile("fonts/Arial.ttf")
-	if err != nil {
-		panic(fmt.Sprintf("failed to read font: %v", err))
+	initFontRegistry()
+}
+
+// columnCount returns how many time columns are enabled.
+func (c Config) columnCount() int {
+	n := 0
+	if c.ShowDays {
+		n++
+	}
+	if c.ShowHours {
+		n++
+	}
+	if c.ShowMinutes {
+		n++
+	}
+	if c.ShowSeconds {
+		n++
+	}
+	if n == 0 {
+		return 4 // fallback: show all
+	}
+	return n
+}
+
+// enabledColumns returns the ordered list of column indices (0=days,1=hours,2=minutes,3=seconds) that are enabled.
+func (c Config) enabledColumns() []int {
+	var cols []int
+	if c.ShowDays {
+		cols = append(cols, 0)
+	}
+	if c.ShowHours {
+		cols = append(cols, 1)
+	}
+	if c.ShowMinutes {
+		cols = append(cols, 2)
+	}
+	if c.ShowSeconds {
+		cols = append(cols, 3)
+	}
+	if len(cols) == 0 {
+		return []int{0, 1, 2, 3}
+	}
+	return cols
+}
+
+// numberFontSizeVal returns the configured number font size or a default.
+func (c Config) numberFontSizeVal() float64 {
+	if c.NumberFontSize > 0 {
+		return c.NumberFontSize
+	}
+	return 60
+}
+
+// labelFontSizeVal returns the configured label font size or a default.
+func (c Config) labelFontSizeVal() float64 {
+	if c.LabelFontSize > 0 {
+		return c.LabelFontSize
+	}
+	return 14
+}
+
+// CalcDimensions computes the ideal Width and Height based on font sizes, columns, labels, etc.
+func (c *Config) CalcDimensions() {
+	numFont := GetFont(c.NumberFontName)
+	numFace := truetype.NewFace(numFont, &truetype.Options{Size: c.numberFontSizeVal()})
+
+	dc := gg.NewContext(1, 1)
+	dc.SetFontFace(numFace)
+	numW, numH := dc.MeasureString("00")
+
+	numCols := c.columnCount()
+
+	// Column width: number width + horizontal padding on each side
+	colPad := c.numberFontSizeVal() * 0.25
+	if colPad < 6 {
+		colPad = 6
+	}
+	columnWidth := numW + colPad*2
+
+	// Separator gap between columns
+	sepGap := c.numberFontSizeVal() * 0.03
+	if sepGap < 1 {
+		sepGap = 1
 	}
 
-	parsedFont, err = truetype.Parse(fontBytes)
-	if err != nil {
-		panic(fmt.Sprintf("failed to parse font: %v", err))
+	totalWidth := columnWidth*float64(numCols) + sepGap*float64(numCols-1)
+
+	// Height: top padding + number + gap + label + bottom padding
+	topPad := c.numberFontSizeVal() * 0.35
+	if topPad < 12 {
+		topPad = 12
 	}
+	bottomPad := topPad
+
+	labelH := 0.0
+	labelGap := 0.0
+	if c.ShowLabels {
+		labelGap = c.numberFontSizeVal() * 0.08
+		if labelGap < 3 {
+			labelGap = 3
+		}
+		labelH = c.labelFontSizeVal() * 1.3
+	}
+
+	totalHeight := topPad + numH + labelGap + labelH + bottomPad
+
+	c.Width = int(math.Ceil(totalWidth))
+	c.Height = int(math.Ceil(totalHeight))
 }
 
 // ---------------------------------------------------------------------------
-// Sprite cache (only addition to your original code)
+// Sprite cache
 // ---------------------------------------------------------------------------
 
 type spriteCache struct {
@@ -49,8 +179,10 @@ type spriteCache struct {
 }
 
 type cacheKey struct {
-	BgColor   uint32
-	TextColor uint32
+	BgColor        uint32
+	TextColor      uint32
+	NumberFontName string
+	NumberFontSize float64
 }
 
 var (
@@ -65,8 +197,10 @@ func packColor(c color.Color) uint32 {
 
 func getOrBuildSpriteCache(cfg Config) (*spriteCache, bool) {
 	key := cacheKey{
-		BgColor:   packColor(cfg.Background),
-		TextColor: packColor(cfg.TextColor),
+		BgColor:        packColor(cfg.Background),
+		TextColor:      packColor(cfg.TextColor),
+		NumberFontName: cfg.NumberFontName,
+		NumberFontSize: cfg.numberFontSizeVal(),
 	}
 
 	spriteCacheMapMu.RLock()
@@ -76,7 +210,8 @@ func getOrBuildSpriteCache(cfg Config) (*spriteCache, bool) {
 	}
 	spriteCacheMapMu.RUnlock()
 
-	numberFace := truetype.NewFace(parsedFont, &truetype.Options{Size: 60})
+	numberFont := GetFont(cfg.NumberFontName)
+	numberFace := truetype.NewFace(numberFont, &truetype.Options{Size: cfg.numberFontSizeVal()})
 	cache := buildSpriteCache(cfg, numberFace)
 
 	spriteCacheMapMu.Lock()
@@ -86,12 +221,8 @@ func getOrBuildSpriteCache(cfg Config) (*spriteCache, bool) {
 	return cache, false
 }
 
-// ---------------------------------------------------------------------------
-// Everything below is your original code, only Generate() changed slightly
-// ---------------------------------------------------------------------------
-
 func buildSpriteCache(cfg Config, numberFace font.Face) *spriteCache {
-	palette := createPalette(cfg.Background, cfg.TextColor)
+	palette := createPalette(cfg.Background, cfg.TextColor, cfg.LabelColor, cfg.SeparatorColor)
 
 	dc := gg.NewContext(1, 1)
 	dc.SetFontFace(numberFace)
@@ -106,9 +237,10 @@ func buildSpriteCache(cfg Config, numberFace font.Face) *spriteCache {
 		palette: palette,
 	}
 
+	numberFont := GetFont(cfg.NumberFontName)
 	for v := 0; v < 100; v++ {
 		txt := fmt.Sprintf("%02d", v)
-		nf := truetype.NewFace(parsedFont, &truetype.Options{Size: 60})
+		nf := truetype.NewFace(numberFont, &truetype.Options{Size: cfg.numberFontSizeVal()})
 
 		dc := gg.NewContext(spriteW, spriteH)
 		dc.SetColor(cfg.Background)
@@ -127,28 +259,92 @@ func buildSpriteCache(cfg Config, numberFace font.Face) *spriteCache {
 	return cache
 }
 
-func buildBaseFrame(cfg Config, palette []color.Color, labelFace font.Face) *image.Paletted {
+func buildBaseFrame(cfg Config, palette []color.Color, labelFace font.Face, spriteH int) *image.Paletted {
 	dc := gg.NewContext(cfg.Width, cfg.Height)
 
-	dc.SetColor(cfg.Background)
-	dc.Clear()
-
-	columnWidth := float64(cfg.Width) / 4
-	labels := []string{"Days", "Hours", "Minutes", "Seconds"}
-
-	dc.SetFontFace(labelFace)
-	dc.SetColor(cfg.TextColor)
-	for i, label := range labels {
-		x := columnWidth * (float64(i) + 0.5)
-		dc.DrawStringAnchored(label, x, float64(cfg.Height)/2+34, 0.5, 0.5)
+	// Draw rounded rectangle background or plain fill
+	if cfg.RoundedCorners && cfg.CornerRadius > 0 {
+		dc.SetColor(color.Transparent)
+		dc.Clear()
+		radius := float64(cfg.CornerRadius)
+		dc.DrawRoundedRectangle(0, 0, float64(cfg.Width), float64(cfg.Height), radius)
+		dc.SetColor(cfg.Background)
+		dc.Fill()
+	} else {
+		dc.SetColor(cfg.Background)
+		dc.Clear()
 	}
 
-	for i := 0; i < 3; i++ {
-		separatorX := columnWidth * float64(i+1)
-		dc.SetColor(cfg.TextColor)
-		dc.SetLineWidth(2.4)
-		dc.DrawLine(separatorX, float64(cfg.Height)/2-18, separatorX, float64(cfg.Height)/2+18)
-		dc.Stroke()
+	allLabels := []string{"Days", "Hours", "Minutes", "Seconds"}
+	enabledCols := cfg.enabledColumns()
+	numCols := len(enabledCols)
+
+	// Calculate dynamic spacing based on number font size
+	fontSize := cfg.numberFontSizeVal()
+	colPad := fontSize * 0.25
+	if colPad < 4 {
+		colPad = 4
+	}
+	topPad := fontSize * 0.35
+	if topPad < 12 {
+		topPad = 12
+	}
+
+	// Number center Y position
+	numCenterY := topPad + float64(spriteH)/2
+
+	// Separator dimensions scale with number font size
+	sepHeight := fontSize * 0.6
+	sepLineWidth := math.Max(1.5, fontSize*0.04)
+	sepOffsetY := 10.0 // push separator down for alignment
+
+	// Column width
+	sepGap := fontSize * 0.03
+	if sepGap < 1 {
+		sepGap = 1
+	}
+
+	numFont := GetFont(cfg.NumberFontName)
+	numFace := truetype.NewFace(numFont, &truetype.Options{Size: fontSize})
+	dcMeasure := gg.NewContext(1, 1)
+	dcMeasure.SetFontFace(numFace)
+	numW, _ := dcMeasure.MeasureString("00")
+	columnWidth := numW + colPad*2
+
+	// Draw labels
+	if cfg.ShowLabels {
+		dc.SetFontFace(labelFace)
+		labelColor := cfg.LabelColor
+		if labelColor == nil {
+			labelColor = cfg.TextColor
+		}
+		dc.SetColor(labelColor)
+
+		labelGap := fontSize * 0.08
+		if labelGap < 3 {
+			labelGap = 3
+		}
+		labelY := topPad + float64(spriteH) + labelGap + cfg.labelFontSizeVal()*0.5
+
+		for i, colIdx := range enabledCols {
+			x := float64(i)*(columnWidth+sepGap) + columnWidth/2
+			dc.DrawStringAnchored(allLabels[colIdx], x, labelY, 0.5, 0.5)
+		}
+	}
+
+	// Draw separators
+	if cfg.ShowSeparators {
+		sepColor := cfg.SeparatorColor
+		if sepColor == nil {
+			sepColor = cfg.TextColor
+		}
+		dc.SetColor(sepColor)
+		dc.SetLineWidth(sepLineWidth)
+		for i := 0; i < numCols-1; i++ {
+			separatorX := float64(i+1)*columnWidth + float64(i)*sepGap + sepGap/2
+			dc.DrawLine(separatorX, numCenterY-sepHeight/2+sepOffsetY, separatorX, numCenterY+sepHeight/2+sepOffsetY)
+			dc.Stroke()
+		}
 	}
 
 	return quantizeNearestNeighbor(
@@ -232,10 +428,30 @@ func computeDiff(prev, curr *image.Paletted) *image.Paletted {
 func Generate(cfg Config) ([]byte, error) {
 	start := time.Now()
 
+	// Handle expired "hide" — return a 1x1 transparent GIF
+	if cfg.Expired && cfg.ExpireBehavior == "hide" {
+		return generateHideGIF()
+	}
+
+	// Handle expired "custom_text" — single frame with centered text
+	if cfg.Expired && cfg.ExpireBehavior == "custom_text" && cfg.ExpireText != "" {
+		return generateCustomTextGIF(cfg)
+	}
+
 	frames := 60
 	delay := 100
 
-	// Only change: use cached sprites instead of building every time
+	// Expired mode (show_zeros): single frame with all zeros
+	if cfg.Expired {
+		frames = 1
+	}
+
+	// Auto-calculate dimensions if not explicitly set or if set to 0
+	if cfg.Width == 0 || cfg.Height == 0 {
+		cfg.CalcDimensions()
+	}
+
+	// Use cached sprites instead of building every time
 	cache, cacheHit := getOrBuildSpriteCache(cfg)
 	if cacheHit {
 		fmt.Println("Sprite cache HIT")
@@ -243,32 +459,63 @@ func Generate(cfg Config) ([]byte, error) {
 		fmt.Printf("Sprite cache MISS — built in: %v\n", time.Since(start))
 	}
 
-	labelFace := truetype.NewFace(parsedFont, &truetype.Options{Size: 14})
-	baseFrame := buildBaseFrame(cfg, cache.palette, labelFace)
+	labelFont := GetFont(cfg.LabelFontName)
+	labelFace := truetype.NewFace(labelFont, &truetype.Options{Size: cfg.labelFontSizeVal()})
+	baseFrame := buildBaseFrame(cfg, cache.palette, labelFace, cache.spriteH)
 
 	stampStart := time.Now()
-	columnWidth := float64(cfg.Width) / 4
-	numY := cfg.Height/2 - 10 - cache.spriteH/2
+	enabledCols := cfg.enabledColumns()
+
+	// Calculate column positions using same logic as buildBaseFrame
+	fontSize := cfg.numberFontSizeVal()
+	colPad := fontSize * 0.25
+	if colPad < 4 {
+		colPad = 4
+	}
+	topPad := fontSize * 0.35
+	if topPad < 12 {
+		topPad = 12
+	}
+	sepGap := fontSize * 0.03
+	if sepGap < 1 {
+		sepGap = 1
+	}
+
+	numFont := GetFont(cfg.NumberFontName)
+	numFace := truetype.NewFace(numFont, &truetype.Options{Size: fontSize})
+	dcMeasure := gg.NewContext(1, 1)
+	dcMeasure.SetFontFace(numFace)
+	numW, _ := dcMeasure.MeasureString("00")
+	columnWidth := numW + colPad*2
+
+	numY := int(topPad)
 
 	fullFrames := make([]*image.Paletted, frames)
 
 	for i := 0; i < frames; i++ {
-		remaining := time.Until(cfg.EndTime) - time.Duration(i)*time.Second
-		days, hours, minutes, seconds := splitDuration(remaining)
+		var days, hours, minutes, seconds int
+		if cfg.Expired {
+			// All zeros for expired state
+			days, hours, minutes, seconds = 0, 0, 0, 0
+		} else {
+			remaining := time.Until(cfg.EndTime) - time.Duration(i)*time.Second
+			days, hours, minutes, seconds = splitDuration(remaining)
+		}
 
 		frame := image.NewPaletted(baseFrame.Bounds(), cache.palette)
 		copy(frame.Pix, baseFrame.Pix)
 
-		values := []int{days, hours, minutes, seconds}
-		for col, val := range values {
-			cx := int(columnWidth * (float64(col) + 0.5))
+		allValues := []int{days, hours, minutes, seconds}
+		for col, colIdx := range enabledCols {
+			val := allValues[colIdx]
+			cx := int(float64(col)*(columnWidth+sepGap) + columnWidth/2)
 			pasteX := cx - cache.spriteW/2
 			stampSprite(frame, cache.sprites[val], pasteX, numY)
 		}
 
 		fullFrames[i] = frame
 	}
-	fmt.Printf("60 frames stamped in: %v\n", time.Since(stampStart))
+	fmt.Printf("%d frames stamped in: %v\n", frames, time.Since(stampStart))
 
 	diffStart := time.Now()
 	anim := gif.GIF{
@@ -349,7 +596,92 @@ func splitDuration(remaining time.Duration) (int, int, int, int) {
 	return days, hours, minutes, seconds
 }
 
-func createPalette(bg, text color.Color) []color.Color {
+func generateHideGIF() ([]byte, error) {
+	palette := []color.Color{color.Transparent}
+	frame := image.NewPaletted(image.Rect(0, 0, 1, 1), palette)
+	frame.SetColorIndex(0, 0, 0)
+
+	anim := gif.GIF{
+		Image:     []*image.Paletted{frame},
+		Delay:     []int{0},
+		Disposal:  []byte{gif.DisposalNone},
+		LoopCount: 0,
+	}
+
+	var buf bytes.Buffer
+	if err := gif.EncodeAll(&buf, &anim); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func generateCustomTextGIF(cfg Config) ([]byte, error) {
+	textSize := cfg.ExpireTextSize
+	if textSize <= 0 {
+		textSize = 24
+	}
+	textColor := cfg.ExpireTextColor
+	if textColor == nil {
+		textColor = cfg.TextColor
+	}
+
+	textFont := GetFont(cfg.ExpireTextFont)
+	textFace := truetype.NewFace(textFont, &truetype.Options{Size: textSize})
+
+	// Measure text to determine dimensions
+	dc := gg.NewContext(1, 1)
+	dc.SetFontFace(textFace)
+	tw, th := dc.MeasureString(cfg.ExpireText)
+
+	padX := textSize * 0.5
+	padY := textSize * 0.5
+	width := int(math.Ceil(tw + padX*2))
+	height := int(math.Ceil(th + padY*2))
+
+	// If the normal countdown dimensions are larger, use those
+	cfg.CalcDimensions()
+	if cfg.Width > width {
+		width = cfg.Width
+	}
+	if cfg.Height > height {
+		height = cfg.Height
+	}
+
+	// Draw frame
+	dc = gg.NewContext(width, height)
+	if cfg.RoundedCorners && cfg.CornerRadius > 0 {
+		dc.SetColor(color.Transparent)
+		dc.Clear()
+		dc.DrawRoundedRectangle(0, 0, float64(width), float64(height), float64(cfg.CornerRadius))
+		dc.SetColor(cfg.Background)
+		dc.Fill()
+	} else {
+		dc.SetColor(cfg.Background)
+		dc.Clear()
+	}
+
+	dc.SetFontFace(textFace)
+	dc.SetColor(textColor)
+	dc.DrawStringAnchored(cfg.ExpireText, float64(width)/2, float64(height)/2, 0.5, 0.5)
+
+	palette := createPalette(cfg.Background, textColor)
+	frame := quantizeNearestNeighbor(dc.Image(), image.Rect(0, 0, width, height), palette)
+
+	anim := gif.GIF{
+		Image:     []*image.Paletted{frame},
+		Delay:     []int{0},
+		Disposal:  []byte{gif.DisposalNone},
+		LoopCount: 0,
+	}
+
+	var buf bytes.Buffer
+	if err := gif.EncodeAll(&buf, &anim); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func createPalette(bg, text color.Color, extra ...color.Color) []color.Color {
 	bgR, bgG, bgB, _ := bg.RGBA()
 	textR, textG, textB, _ := text.RGBA()
 
@@ -365,6 +697,24 @@ func createPalette(bg, text color.Color) []color.Color {
 		})
 	}
 	palette = append(palette, text)
+
+	// Add extra colors (label, separator) with interpolation steps to bg
+	for _, ec := range extra {
+		if ec == nil {
+			continue
+		}
+		ecR, ecG, ecB, _ := ec.RGBA()
+		for i := 1; i <= 3; i++ {
+			t := float64(i) / 4.0
+			palette = append(palette, color.RGBA{
+				R: uint8(float64(bgR>>8)*(1-t) + float64(ecR>>8)*t),
+				G: uint8(float64(bgG>>8)*(1-t) + float64(ecG>>8)*t),
+				B: uint8(float64(bgB>>8)*(1-t) + float64(ecB>>8)*t),
+				A: 255,
+			})
+		}
+		palette = append(palette, ec)
+	}
 
 	return palette
 }

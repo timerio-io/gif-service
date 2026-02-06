@@ -24,6 +24,24 @@ func CreateCountdown(db *gorm.DB, userId string, name string) (*models.Countdown
 	return countdown, nil
 }
 
+func CreateCountdownFull(db *gorm.DB, userId string, name string, countdownType models.CountdownType, endTime *time.Time, duration *int) (*models.Countdown, error) {
+	countdown := &models.Countdown{
+		ID:        uuid.New().String(),
+		UserID:    userId,
+		Name:      name,
+		Type:      countdownType,
+		EndTime:   endTime,
+		Duration:  duration,
+		CreatedAt: time.Now(),
+	}
+
+	if err := db.Create(countdown).Error; err != nil {
+		return nil, err
+	}
+
+	return countdown, nil
+}
+
 func GetCountdownById(db *gorm.DB, id string) (*models.Countdown, error) {
 	var countdown models.Countdown
 

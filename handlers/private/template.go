@@ -11,7 +11,7 @@ import (
 )
 
 func GetTemplate(w http.ResponseWriter, r *http.Request) {
-	countdownID := chi.URLParam(r, "countdownID")
+	countdownID := chi.URLParam(r, "countdown_id")
 
 	template, err := queries.GetTemplate(db, countdownID)
 	if err != nil {
